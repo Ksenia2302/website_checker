@@ -3,12 +3,14 @@
 200 - Ок
 500 - ошибка на сервере
 '''
-
+import time
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import requests
 from queue import Queue
+
+from urllib.parse import urlparse
 
 class WebsiteCheckerApp:
     def __init__(self, window):
@@ -65,15 +67,76 @@ class WebsiteCheckerApp:
 
 
     def clear_list(self):
-        pass
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        self.update_status(f'Списко ощищен')
+
     def add_site(self):
-        pass
+        url = self.url_entry.get().strip()
+        if not url:
+            messagebox.showerror('Error', 'Введите URL сайта')
+            return
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+
+        try:
+            parsed = urlparse(url)
+            if not parsed.netloc:
+                raise  ValueError('Некорректный URL')
+            self.tree.insert('', tk.END, values=(url, 'Не проверен', ''))
+            self.url_entry.delete(0, tk.END)
+            self.update_status(f'Добавлен сайт: {url}')
+
+
+        except ValueError as e:
+            messagebox.showerror('Error', f'Некорректный URL: {e}')
+
+
+
+
+
 
     def check_queue(self):
         pass
 
     def start_check_all(self):
-        pass
+        if not self.tree.get_children():
+            messagebox.showerror('Error', 'Не сайтов для проверки')
+            return
+        self.update_status(f'Начата проверка всех сайтов...')
+
+        self.add_button.config(state=tk.DISABLED)
+        self.check_button.config(state=tk.DISABLED)
+        self.clear_button.config(state=tk.DISABLED)
+
+
+
+        for item in self.tree.get_children():
+            url = self.tree.item(item, 'values')[0]
+            thread = threading.Thread(target=self.check_site, args=(item, url), daemon=True)
+            thread.start()
+
+    def check_site(self, item, url):
+        self.queue.put(('status', item, f'Проверяется...'))
+
+        start_time = time.time()
+        response = requests.head(url, timeout=10, allow_redirects=True)
+        response_time = int((time.time() - start_time) * 1000)
+
+        status = f'{response.status_code} {response.reason}'
+
+        self.queue.put(('result', item, status, response_time))
+
+    def update_status(self, message):
+        self.status_var.set(message)
+        self.window.update_idletasks()
+
+
+
+
+
+
+
 
 
 
